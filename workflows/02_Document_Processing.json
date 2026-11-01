@@ -1,0 +1,570 @@
+{
+  "name": "2. Document Processing — PDF, Embeddings, Supabase — Hardened v2",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "triggerOn": "specificFolder",
+        "folderToWatch": {
+          "__rl": true,
+          "value": "REPLACE_WITH_DRIVE_FOLDER_ID",
+          "mode": "id"
+        },
+        "event": "fileCreated",
+        "options": {}
+      },
+      "id": "8d960db3-fb66-466a-ac03-6da5eb2ff68c",
+      "name": "Google Drive Trigger",
+      "type": "n8n-nodes-base.googleDriveTrigger",
+      "typeVersion": 1,
+      "position": [
+        -2272,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "dc7efa40-d3ad-4ae4-a72e-7567352c13f2",
+              "leftValue": "={{ $json.mimeType || \"\" }}",
+              "rightValue": "application/pdf",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "3df427e5-3a41-4b80-abae-42cb408af887",
+              "leftValue": "={{ $json.name || \"\" }}",
+              "rightValue": ".pdf",
+              "operator": {
+                "type": "string",
+                "operation": "endsWith"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "2224324e-1aec-4f79-a683-e0e86eedb29b",
+      "name": "Is PDF?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -2032,
+        144
+      ],
+      "notes": "Only accept Google Drive files whose MIME type is application/pdf AND whose name ends in .pdf."
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.id }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "id": "7e5dc0e7-c4b3-4366-a362-0b960e92f4fb",
+      "name": "Download Sales PDF",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        -1776,
+        64
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {}
+      },
+      "id": "58bf2539-c293-4860-ac75-b4eb2226d90e",
+      "name": "Extract PDF Text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        -1536,
+        64
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_REPORTS_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "REPLACE_WITH_REPORTS_SHEET_TAB_ID",
+          "mode": "id"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "drive_file_id",
+              "lookupValue": "={{ $('Google Drive Trigger').first().json.id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "593f453c-ce5f-420a-a755-ba5c4226a7d1",
+      "name": "Lookup Report in Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -1296,
+        64
+      ],
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "notes": "A successful lookup with zero matching rows emits one empty item for metadata fallback. API failures STOP the entire workflow after retries; never treat a Sheets error as a missing row."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Workflow 2: normalize PDF and metadata from Google Drive, Sheets, or the filename.\nconst sheetRow = $input.first()?.json || {};\nconst drive = $('Google Drive Trigger').first().json;\nconst extraction = $('Extract PDF Text').first().json;\n\nconst fileId = String(drive.id || '').trim();\nconst fileName = String(drive.name || '').trim();\nconst mimeType = String(drive.mimeType || '').trim().toLowerCase();\nconst text = String(extraction.text || '').replace(/\\u0000/g, '').replace(/\\r\\n/g, '\\n').trim();\n\nif (!/^[A-Za-z0-9_-]{10,200}$/.test(fileId)) {\n  throw new Error('Invalid or missing Google Drive file ID; indexing stopped.');\n}\nif (mimeType !== 'application/pdf' || !/\\.pdf$/i.test(fileName)) {\n  throw new Error('The selected Drive file is not a valid PDF by MIME type and extension: ' + fileName);\n}\nif (text.length < 80) {\n  throw new Error('PDF text extraction produced fewer than 80 characters. Scanned/image-only PDFs require OCR. File: ' + fileName);\n}\n\nconst branchCodes = { CAI: 'Cairo', ALX: 'Alexandria', GIZ: 'Giza', MAN: 'Mansoura' };\nconst allowedBranches = Object.values(branchCodes);\nconst metadataText = [fileName, text.slice(0, 1000)].join('\\n');\nconst reportCode = metadataText.match(/(?:NM-|NileMart[_ -])?(CAI|ALX|GIZ|MAN)[_-](20\\d{2}-(?:0[1-9]|1[0-2]))/i);\nconst sheetBranch = String(sheetRow.branch || '').trim();\nconst sheetMonth = String(sheetRow.report_month || '').trim();\nconst validSheetBranch = allowedBranches.find((b) => b.toLowerCase() === sheetBranch.toLowerCase()) || '';\nconst validSheetMonth = /^20\\d{2}-(0[1-9]|1[0-2])$/.test(sheetMonth) ? sheetMonth : '';\n\nconst branchFromText = text.slice(0, 1000).match(/\\bBranch\\s*:\\s*(Cairo|Alexandria|Giza|Mansoura)\\b/i);\nconst branch = validSheetBranch || (reportCode ? branchCodes[reportCode[1].toUpperCase()] : '')\n  || (branchFromText ? allowedBranches.find((b) => b.toLowerCase() === branchFromText[1].toLowerCase()) : '');\nconst monthFromText = metadataText.match(/\\b(20\\d{2}-(?:0[1-9]|1[0-2]))\\b/);\nconst reportMonth = validSheetMonth || (reportCode?.[2] || monthFromText?.[1] || '');\n\nif (!branch || !reportMonth) {\n  throw new Error('Cannot determine branch and report month. Check the Reports sheet or rename the PDF, e.g. NileMart_CAI_2026-09_Sales_Inventory.pdf.');\n}\n\nconst fromSheets = Boolean(validSheetBranch && validSheetMonth);\nconst sheetLink = String(sheetRow.file_link || '').trim();\nconst driveLink = sheetLink || ('https://drive.google.com/file/d/' + encodeURIComponent(fileId) + '/view');\nconst indexedAt = new Date().toISOString();\n\nreturn [{json: {\n  file_id: fileId,\n  file_name: fileName,\n  branch,\n  report_month: reportMonth,\n  drive_url: driveLink,\n  page_count: Number(extraction.numpages || 0),\n  indexed_at: indexedAt,\n  metadata_source: fromSheets ? 'google_sheets' : 'pdf_or_filename',\n  document_text: [\n    'NileMart Monthly Sales and Inventory Report',\n    'Branch: ' + branch,\n    'Report month: ' + reportMonth,\n    'Original PDF: ' + fileName,\n    '',\n    text,\n  ].join('\\n'),\n}}];"
+      },
+      "id": "735e6e8c-5e01-442e-ae21-057e515a4fba",
+      "name": "Prepare Document Metadata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1040,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "tableName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "documents"
+        },
+        "options": {
+          "queryName": "match_documents"
+        }
+      },
+      "id": "f5321623-7dfa-4c38-a7f2-e725b8f182ca",
+      "name": "Insert into Supabase Vector Store",
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const doc = $('Prepare Document Metadata').first().json;\nreturn [{json: {\n  status: 'indexed',\n  file_id: doc.file_id,\n  file_name: doc.file_name,\n  branch: doc.branch,\n  report_month: doc.report_month,\n  drive_url: doc.drive_url,\n  metadata_source: doc.metadata_source,\n  page_count: doc.page_count,\n  embedding_model: 'nomic-embed-text:latest',\n  vector_table: 'documents',\n  indexed_at: doc.indexed_at,\n}}];"
+      },
+      "id": "9bad6bf8-e7d1-4e55-aa7a-707292b231f6",
+      "name": "Indexing Complete",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        288,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "model": "nomic-embed-text:latest"
+      },
+      "id": "45a969c1-fa5d-4fbd-ac0c-321119da8c71",
+      "name": "Ollama Embeddings",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOllama",
+      "typeVersion": 1,
+      "position": [
+        -96,
+        336
+      ]
+    },
+    {
+      "parameters": {
+        "jsonMode": "expressionData",
+        "jsonData": "={{ $json.document_text }}",
+        "textSplittingMode": "custom",
+        "options": {
+          "metadata": {
+            "metadataValues": [
+              {
+                "name": "file_id",
+                "value": "={{ $json.file_id }}"
+              },
+              {
+                "name": "file_name",
+                "value": "={{ $json.file_name }}"
+              },
+              {
+                "name": "branch",
+                "value": "={{ $json.branch }}"
+              },
+              {
+                "name": "report_month",
+                "value": "={{ $json.report_month }}"
+              },
+              {
+                "name": "drive_url",
+                "value": "={{ $json.drive_url }}"
+              },
+              {
+                "name": "source",
+                "value": "google_drive"
+              },
+              {
+                "name": "indexed_at",
+                "value": "={{ $json.indexed_at }}"
+              },
+              {
+                "name": "metadata_source",
+                "value": "={{ $json.metadata_source }}"
+              },
+              {
+                "name": "page_count",
+                "value": "={{ $json.page_count }}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "1621c84a-c901-48ce-a96f-f8e61065a8c0",
+      "name": "Default Data Loader",
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1.1,
+      "position": [
+        144,
+        336
+      ]
+    },
+    {
+      "parameters": {
+        "chunkSize": 1800,
+        "chunkOverlap": 250,
+        "options": {}
+      },
+      "id": "8ee9d318-6e7a-4c52-a3cf-39cfa11402ae",
+      "name": "Recursive Character Text Splitter",
+      "type": "@n8n/n8n-nodes-langchain.textSplitterRecursiveCharacterTextSplitter",
+      "typeVersion": 1,
+      "position": [
+        144,
+        544
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "documents",
+        "limit": 1,
+        "filterType": "string",
+        "filterString": "={{ 'metadata->>file_id=eq.' + $json.file_id }}"
+      },
+      "id": "10373209-a19f-453b-aee3-32a60d23d61e",
+      "name": "Check Existing Chunks",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -784,
+        64
+      ],
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "notes": "Read-only lookup by exact, validated Drive file_id. Zero matches emit one empty item for indexing. Supabase API errors STOP the workflow; never mistake a failed duplicate check for zero matches."
+    },
+    {
+      "parameters": {
+        "jsCode": "const doc = $('Prepare Document Metadata').first().json;\nconst rows = $input.all().map((item) => item.json || {});\nconst alreadyIndexed = rows.some((row) => row.id !== undefined && row.id !== null);\nreturn [{ json: {\n  ...doc,\n  should_index: !alreadyIndexed,\n  indexing_decision: alreadyIndexed ? 'skip_existing_file_id' : 'index_new_file_id',\n}}];"
+      },
+      "id": "5b0afa05-cd91-4906-a82e-68ff9b0d68b8",
+      "name": "Decide Indexing",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -528,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "2f06923b-585d-47db-a18e-2e5a8f4dc6b5",
+              "leftValue": "={{ $json.should_index }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "d42e6a3f-0644-4d2c-abf3-10cee9b88cf0",
+      "name": "Needs Indexing?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -272,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const doc = $input.first().json;\nreturn [{json: {\n  status: 'skipped_already_indexed',\n  reason: 'Supabase documents already contains a chunk for this Drive file_id',\n  file_id: doc.file_id,\n  file_name: doc.file_name,\n  branch: doc.branch,\n  report_month: doc.report_month,\n}}];"
+      },
+      "id": "2f3373c3-9a0a-4d63-a21a-4158d149f683",
+      "name": "Already Indexed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Use the actual item sent down the False branch, not a potentially stale trigger reference.\nconst file = $input.first()?.json || {};\nreturn [{json: {\n  status: 'skipped_non_pdf',\n  reason: 'Drive file must have application/pdf MIME type AND .pdf extension',\n  file_id: file.id || null,\n  file_name: file.name || null,\n  mime_type: file.mimeType || null,\n}}];"
+      },
+      "id": "0378039f-7129-4bb4-abaa-2cfaaeaa2540",
+      "name": "Ignored Non-PDF",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1776,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "errorMessage": "={{ 'Workflow 2 processing error: ' + ($json.error?.message || $json.message || String($json.error || 'Unknown upstream error')) }}"
+      },
+      "id": "26fa284c-3c0c-480a-a483-75a01fd88d90",
+      "name": "Stop On Processing Error",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        -752,
+        640
+      ],
+      "notes": "Preserve an Error execution in n8n for download and extraction failures. Sheets and Supabase lookups stop the workflow directly to prevent any phantom success branch when Always Output Data is enabled."
+    }
+  ],
+  "connections": {
+    "Google Drive Trigger": {
+      "main": [
+        [
+          {
+            "node": "Is PDF?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is PDF?": {
+      "main": [
+        [
+          {
+            "node": "Download Sales PDF",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ignored Non-PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Sales PDF": {
+      "main": [
+        [
+          {
+            "node": "Extract PDF Text",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Stop On Processing Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PDF Text": {
+      "main": [
+        [
+          {
+            "node": "Lookup Report in Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Stop On Processing Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lookup Report in Sheets": {
+      "main": [
+        [
+          {
+            "node": "Prepare Document Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Document Metadata": {
+      "main": [
+        [
+          {
+            "node": "Check Existing Chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert into Supabase Vector Store": {
+      "main": [
+        [
+          {
+            "node": "Indexing Complete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Embeddings": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Insert into Supabase Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Default Data Loader": {
+      "ai_document": [
+        [
+          {
+            "node": "Insert into Supabase Vector Store",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recursive Character Text Splitter": {
+      "ai_textSplitter": [
+        [
+          {
+            "node": "Default Data Loader",
+            "type": "ai_textSplitter",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Existing Chunks": {
+      "main": [
+        [
+          {
+            "node": "Decide Indexing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decide Indexing": {
+      "main": [
+        [
+          {
+            "node": "Needs Indexing?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs Indexing?": {
+      "main": [
+        [
+          {
+            "node": "Insert into Supabase Vector Store",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Already Indexed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "active": false,
+  "pinData": {},
+  "tags": []
+}

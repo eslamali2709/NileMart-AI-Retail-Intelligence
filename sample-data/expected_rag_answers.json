@@ -1,0 +1,52 @@
+{
+  "dataset": "NileMart synthetic September 2026 public subset",
+  "synthetic": true,
+  "currency": "EGP",
+  "definition_of_sales": "Net sales after discounts and refunds",
+  "report_count": 2,
+  "scope": {
+    "branches": [
+      "Cairo",
+      "Alexandria"
+    ],
+    "report_month": "2026-09"
+  },
+  "source": "Selected original CSV records, reconciled to the two included PDF reports",
+  "reports": [
+    {
+      "branch": "Cairo",
+      "report_month": "2026-09",
+      "file_name": "NileMart_CAI_2026-09_Sales_Inventory.pdf",
+      "net_sales_egp": 922573
+    },
+    {
+      "branch": "Alexandria",
+      "report_month": "2026-09",
+      "file_name": "NileMart_ALX_2026-09_Sales_Inventory.pdf",
+      "net_sales_egp": 694294
+    }
+  ],
+  "combined_net_sales_egp": 1616867,
+  "low_stock": [
+    {
+      "branch": "Cairo",
+      "sku": "ELE-403",
+      "product": "AA Batteries 4-Pack",
+      "closing_stock": 99,
+      "reorder_point": 144
+    },
+    {
+      "branch": "Alexandria",
+      "sku": "PER-301",
+      "product": "Shampoo 400ml",
+      "closing_stock": 102,
+      "reorder_point": 148
+    }
+  ],
+  "missing_coverage": [
+    "July and August PDF reports are not included.",
+    "Giza and Mansoura PDF reports are not included.",
+    "The two September PDFs mention prior-month comparisons, but the full prior-month reports are not included.",
+    "This subset cannot establish totals or rankings for all four branches over July-September."
+  ]
+}

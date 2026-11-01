@@ -1,0 +1,53 @@
+# Original private references (cover the existing folder casing as well).
+_private_resources/
+_[Pp]rivate_[Rr]esources/
+_Project_Resources/
+
+# Environment and local credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+credentials*.json
+service-account*.json
+.aws/
+.npmrc
+
+# Dependencies and generated output
+node_modules/
+.next/
+out/
+build/
+dist/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# Local tooling, deployment state, logs, and OS files
+.vercel/
+.turbo/
+.cache/
+.codex/
+.agents/
+.idea/
+.vscode/
+*.log
+logs/
+tmp/
+temp/
+.DS_Store
+Thumbs.db
+*.local
+
+# Rendering tests may leave these temporary modules after an interrupted run.
+frontend/tests/.markdown-render-test-*/
+frontend/tests/.reports-render-test-*/
+frontend/tests/.dashboard-render-test-*/
+
+# Legacy raw exports retained locally; publish only the numbered sanitized copies.
+/workflows/NileMart — 01 Monthly Sales Ingestion — Production (1).json
+/workflows/NileMart — 02. Document Processing — PDF, Embeddings, Supabase — Hardened v2 (1).json
+/workflows/NileMart — 03 AI Assistant RAG, Calculator & Approved Gmail — Hardened v2.json

@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: Arial, Helvetica, sans-serif;
+}
+
+body {
+  background: #f8f9f6;
+  color: #0f172a;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+::selection { background: #d1fae5; color: #064e3b; }
+
+:focus-visible {
+  outline: 3px solid #047857;
+  outline-offset: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; }
+}

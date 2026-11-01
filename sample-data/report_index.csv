@@ -1,0 +1,3 @@
+report_id,branch,month,filename,gross_sales,discounts,returns_value,net_sales,units_sold,low_stock_skus
+NM-CAI-2026-09,Cairo,2026-09,NileMart_CAI_2026-09_Sales_Inventory.pdf,955301,24961,7767,922573,7908,ELE-403
+NM-ALX-2026-09,Alexandria,2026-09,NileMart_ALX_2026-09_Sales_Inventory.pdf,721427,21990,5143,694294,5977,PER-301

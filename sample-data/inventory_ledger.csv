@@ -1,0 +1,25 @@
+report_id,branch,month,sku,product,opening_stock,received_units,units_sold,returned_to_stock,damaged_units,closing_stock,reorder_point,low_stock
+NM-CAI-2026-09,Cairo,2026-09,GRC-101,Rice 5kg Bag,522,729,719,8,1,539,288,False
+NM-CAI-2026-09,Cairo,2026-09,GRC-102,Cooking Oil 1L,957,1121,1003,5,1,1079,401,False
+NM-CAI-2026-09,Cairo,2026-09,GRC-103,Sugar 1kg,757,1349,1120,5,1,990,448,False
+NM-CAI-2026-09,Cairo,2026-09,GRC-104,UHT Milk 1L,953,806,989,8,1,777,396,False
+NM-CAI-2026-09,Cairo,2026-09,HOM-201,Laundry Detergent 2.5kg,385,422,398,2,0,411,159,False
+NM-CAI-2026-09,Cairo,2026-09,HOM-202,Dish Soap 750ml,548,893,701,9,1,748,280,False
+NM-CAI-2026-09,Cairo,2026-09,PER-301,Shampoo 400ml,341,634,511,3,2,465,204,False
+NM-CAI-2026-09,Cairo,2026-09,PER-302,Toothpaste 100ml,484,782,640,4,2,628,256,False
+NM-CAI-2026-09,Cairo,2026-09,ELE-401,Electric Kettle 1.7L,122,142,134,1,1,130,54,False
+NM-CAI-2026-09,Cairo,2026-09,ELE-402,LED Bulb 12W,305,546,436,4,0,419,174,False
+NM-CAI-2026-09,Cairo,2026-09,ELE-403,AA Batteries 4-Pack,371,85,360,5,2,99,144,True
+NM-CAI-2026-09,Cairo,2026-09,HOM-203,Tissue Box 150 Sheets,890,677,897,7,1,676,359,False
+NM-ALX-2026-09,Alexandria,2026-09,GRC-101,Rice 5kg Bag,523,538,550,4,2,513,220,False
+NM-ALX-2026-09,Alexandria,2026-09,GRC-102,Cooking Oil 1L,636,762,778,4,0,624,311,False
+NM-ALX-2026-09,Alexandria,2026-09,GRC-103,Sugar 1kg,829,696,857,6,2,672,343,False
+NM-ALX-2026-09,Alexandria,2026-09,GRC-104,UHT Milk 1L,625,850,767,5,0,713,307,False
+NM-ALX-2026-09,Alexandria,2026-09,HOM-201,Laundry Detergent 2.5kg,282,269,310,2,0,243,124,False
+NM-ALX-2026-09,Alexandria,2026-09,HOM-202,Dish Soap 750ml,398,602,514,3,0,489,206,False
+NM-ALX-2026-09,Alexandria,2026-09,PER-301,Shampoo 400ml,293,175,369,4,1,102,148,True
+NM-ALX-2026-09,Alexandria,2026-09,PER-302,Toothpaste 100ml,447,512,465,2,2,494,186,False
+NM-ALX-2026-09,Alexandria,2026-09,ELE-401,Electric Kettle 1.7L,77,117,99,1,1,95,40,False
+NM-ALX-2026-09,Alexandria,2026-09,ELE-402,LED Bulb 12W,248,424,341,3,1,333,136,False
+NM-ALX-2026-09,Alexandria,2026-09,ELE-403,AA Batteries 4-Pack,255,286,269,1,1,272,108,False
+NM-ALX-2026-09,Alexandria,2026-09,HOM-203,Tissue Box 150 Sheets,648,563,658,4,0,557,263,False

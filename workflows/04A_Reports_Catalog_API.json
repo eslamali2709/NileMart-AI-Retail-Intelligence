@@ -1,0 +1,140 @@
+{
+  "name": "NileMart — 04A Reports Catalog API — Read Only",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "nilemart-reports-catalog-v1",
+        "authentication": "basicAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "b936214f-271c-4b81-abf7-b50206f49c0c",
+      "name": "GET Reports Catalog",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -480,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_REPORTS_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "REPLACE_WITH_REPORTS_SHEET_TAB_ID",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "id": "16f0b7ef-1ef5-47db-aaee-adb77f198dee",
+      "name": "Read Reports from Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -240,
+        112
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normalize the six production-sheet fields for the frontend.\n// Do not expose spreadsheet row metadata or untrusted link targets.\nconst rows = $input.all().map(item => item.json || {});\nconst reports = rows.filter(row => {\n  const branch = String(row.branch ?? '').trim();\n  const month = String(row.report_month ?? '').trim();\n  const filename = String(row.file_name ?? '').trim();\n  const id = String(row.drive_file_id ?? '').trim();\n  return Boolean(branch) && /^\\d{4}-(0[1-9]|1[0-2])$/.test(month) && /\\.pdf$/i.test(filename) && /^[A-Za-z0-9_-]{10,128}$/.test(id);\n}).map(row => {\n  const driveId = String(row.drive_file_id).trim();\n  return {\n    branch: String(row.branch).trim(),\n    report_month: String(row.report_month).trim(),\n    file_name: String(row.file_name).trim(),\n    uploaded_at: String(row.uploaded_at ?? '').trim(),\n    drive_file_id: driveId,\n    file_link: `https://drive.google.com/file/d/${driveId}/view`\n  };\n});\nreports.sort((a, b) => b.report_month.localeCompare(a.report_month) || b.uploaded_at.localeCompare(a.uploaded_at));\nconst branches = [...new Set(reports.map(r => r.branch))].sort((a, b) => a.localeCompare(b));\nreturn [{json: {\n  success: true,\n  total: reports.length,\n  branches,\n  latest_report_month: reports[0]?.report_month ?? null,\n  reports,\n  fetched_at: new Date().toISOString()\n}}];"
+      },
+      "id": "1a6ccb26-17ed-4ef5-a37d-d5b7909a3a75",
+      "name": "Normalize Reports Catalog",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "0a5fd5d6-3627-432c-ae2c-ff25b2c978df",
+      "name": "Respond - Reports Catalog",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"success\": false,\n  \"error_code\": \"REPORTS_CATALOG_UNAVAILABLE\",\n  \"message\": \"Unable to load the reports catalog from Google Sheets. Please try again later.\"\n}",
+        "options": {
+          "responseCode": 503
+        }
+      },
+      "id": "2b310a62-af06-4d05-a71c-3bbb93d19f91",
+      "name": "Respond - Sheets Read Failed",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        0,
+        208
+      ]
+    }
+  ],
+  "connections": {
+    "GET Reports Catalog": {
+      "main": [
+        [
+          {
+            "node": "Read Reports from Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Reports from Google Sheets": {
+      "main": [
+        [
+          {
+            "node": "Normalize Reports Catalog",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond - Sheets Read Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Reports Catalog": {
+      "main": [
+        [
+          {
+            "node": "Respond - Reports Catalog",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "active": false,
+  "pinData": {},
+  "tags": []
+}

@@ -1,0 +1,2 @@
+# Preserve PDF bytes across platforms.
+*.pdf binary

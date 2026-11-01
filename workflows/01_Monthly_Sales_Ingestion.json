@@ -1,0 +1,502 @@
+{
+  "name": "NileMart — 01 Monthly Sales Ingestion — Production",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "monthly-sales-upload",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -656,
+        64
+      ],
+      "id": "aa7cdfce-3bcc-4afd-af29-c5700ac81847",
+      "name": "Webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst item = $input.first();\nconst body = item.json.body || {};\nconst file = item.binary?.file;\n\nconst allowedBranches = [\n  \"Cairo\",\n  \"Alexandria\",\n  \"Mansoura\",\n  \"Giza\"\n];\n\nfunction reject(errorCode, message) {\n  return [{\n    json: {\n      success: false,\n      validation_status: \"rejected\",\n      error_code: errorCode,\n      message: message\n    },\n    pairedItem: { item: 0 }\n  }];\n}\n\nconst branch = String(body.branch || \"\").trim();\nconst reportMonth = String(body.report_month || \"\").trim();\n\nif (!allowedBranches.includes(branch)) {\n  return reject(\n    \"INVALID_BRANCH\",\n    \"Branch is missing or invalid.\"\n  );\n}\n\nif (!/^\\d{4}-(0[1-9]|1[0-2])$/.test(reportMonth)) {\n  return reject(\n    \"INVALID_REPORT_MONTH\",\n    \"Report month must be in YYYY-MM format.\"\n  );\n}\n\nif (!file) {\n  return reject(\n    \"MISSING_FILE\",\n    \"A PDF file is required.\"\n  );\n}\n\nconst fileName = String(file.fileName || \"\");\n\nif (\n  file.mimeType !== \"application/pdf\" ||\n  !fileName.toLowerCase().endsWith(\".pdf\")\n) {\n  return reject(\n    \"INVALID_FILE_TYPE\",\n    \"Only PDF files are accepted.\"\n  );\n}\n\n// Check actual file signature, not only its extension.\nlet fileBuffer;\n\ntry {\n  fileBuffer = await this.helpers.getBinaryDataBuffer(0, \"file\");\n} catch (error) {\n  return reject(\n    \"UNREADABLE_FILE\",\n    \"The uploaded file could not be read.\"\n  );\n}\n\nif (\n  !fileBuffer ||\n  fileBuffer.length < 5 ||\n  fileBuffer.subarray(0, 5).toString(\"ascii\") !== \"%PDF-\"\n) {\n  return reject(\n    \"INVALID_PDF\",\n    \"The uploaded file is not a valid PDF.\"\n  );\n}\n\nreturn [{\n  json: {\n    branch,\n    report_month: reportMonth,\n    file_name: fileName,\n    mime_type: file.mimeType,\n    uploaded_at: new Date().toISOString(),\n    validation_status: \"passed\"\n  },\n  binary: { file },\n  pairedItem: { item: 0 }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -432,
+        64
+      ],
+      "id": "d0699a84-f6d8-4947-a5dc-bf54de76c409",
+      "name": "Validate Report Upload"
+    },
+    {
+      "parameters": {
+        "inputDataFieldName": "file",
+        "name": "={{ $json.file_name }}",
+        "driveId": {
+          "__rl": true,
+          "value": "My Drive",
+          "mode": "list"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_DRIVE_FOLDER_ID",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        720,
+        80
+      ],
+      "id": "1cb1e8fd-6293-4359-a3c8-bc9c939781b7",
+      "name": "Upload Sales Report to Drive",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_REPORTS_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "REPLACE_WITH_REPORTS_SHEET_TAB_ID",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "branch": "={{ $('Validate Report Upload').item.json.branch }}",
+            "report_month": "={{ $('Validate Report Upload').item.json.report_month }}",
+            "file_name": "={{ $('Validate Report Upload').item.json.file_name }}",
+            "uploaded_at": "={{ $('Validate Report Upload').item.json.uploaded_at }}",
+            "drive_file_id": "={{ $json.id }}",
+            "file_link": "={{ 'https://drive.google.com/file/d/' + $json.id + '/view' }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "branch",
+              "displayName": "branch",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "report_month",
+              "displayName": "report_month",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "file_name",
+              "displayName": "file_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "uploaded_at",
+              "displayName": "uploaded_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "drive_file_id",
+              "displayName": "drive_file_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "file_link",
+              "displayName": "file_link",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        960,
+        80
+      ],
+      "id": "58024ea9-2388-4e90-a749-f7b0f9350a5b",
+      "name": "Log Report in Google Sheets",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"success\": true,\n  \"message\": \"Sales report uploaded to Google Drive and logged in Google Sheets.\"\n}",
+        "options": {
+          "responseCode": 201
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1120,
+        -48
+      ],
+      "id": "d6db3cc1-b1e0-4716-a786-ee01143a8d9e",
+      "name": "Respond - Upload Success"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "2e931e67-dbae-465d-a5c8-d21bf476f5e9",
+              "leftValue": "={{ $json.validation_status }}",
+              "rightValue": "passed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -208,
+        64
+      ],
+      "id": "647eae78-771b-4fe3-a871-ee721fe18f83",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "4a2c09fc-669c-4efc-a963-4798233cef02",
+      "name": "Respond - Invalid Upload",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        -48,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_REPORTS_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "REPLACE_WITH_REPORTS_SHEET_TAB_ID",
+          "mode": "id"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "branch",
+              "lookupValue": "={{ $('Validate Report Upload').first().json.branch }}"
+            },
+            {
+              "lookupColumn": "report_month",
+              "lookupValue": "={{ $('Validate Report Upload').first().json.report_month }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -16,
+        48
+      ],
+      "id": "a4053248-20d1-4170-a8c4-29267fc0be4c",
+      "name": "Check Existing Reports",
+      "alwaysOutputData": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prevent uploads when the duplicate lookup fails.\nconst lookupErrors = $('Check Existing Reports').all(1);\n\nif (lookupErrors.length > 0) {\n  return [];\n}\nconst validated = $('Validate Report Upload').first();\n\nconst branch = String(\n  validated.json.branch || ''\n).trim().toLowerCase();\n\nconst reportMonth = String(\n  validated.json.report_month || ''\n).trim();\n\nconst existingRows = $input.all();\n\n// Check whether a matching branch-month report exists\nconst isDuplicate = existingRows.some(item => {\n  const row = item.json || {};\n\n  return (\n    String(row.branch || '').trim().toLowerCase() === branch &&\n    String(row.report_month || '').trim() === reportMonth\n  );\n});\n\n// Existing report: reject without passing the PDF forward\nif (isDuplicate) {\n  return [{\n    json: {\n      success: false,\n      is_duplicate: true,\n      branch: validated.json.branch,\n      report_month: reportMonth,\n      error_code: \"DUPLICATE_REPORT\",\n      message: \"A report already exists for this branch and month.\"\n    },\n    pairedItem: { item: 0 }\n  }];\n}\n\n// New report: preserve the validated metadata and PDF\nreturn [{\n  json: {\n    ...validated.json,\n    is_duplicate: false\n  },\n  binary: validated.binary,\n  pairedItem: { item: 0 }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        32
+      ],
+      "id": "7ded63ca-a6d6-43b9-a61f-27d527e56a04",
+      "name": "Evaluate Duplicate"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "152aa8d7-5b02-4c9b-a6d5-153a83d361c3",
+              "leftValue": "={{ $json.is_duplicate }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        512,
+        48
+      ],
+      "id": "cd5a7a25-34e4-4dcf-a256-af75cbbef5d3",
+      "name": "Is Duplicate Report?"
+    },
+    {
+      "parameters": {
+        "options": {
+          "responseCode": 409
+        }
+      },
+      "id": "17f8beeb-9767-4707-ad11-17f6b02a4c7c",
+      "name": "Respond - Duplicate Report",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        768,
+        -96
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"success\": false,\n  \"error_code\": \"DRIVE_UPLOAD_FAILED\",\n  \"message\": \"Failed to upload the report to Google Drive. Please try again later.\"\n}",
+        "options": {
+          "responseCode": 502
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        848,
+        336
+      ],
+      "id": "2a3be77b-efb3-413d-a174-e12709bd1ba0",
+      "name": "Respond - Drive Upload Failed"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"success\": false,\n  \"partial_success\": true,\n  \"file_uploaded\": true,\n  \"logging_status\": \"unconfirmed\",\n  \"error_code\": \"SHEETS_LOGGING_FAILED\",\n  \"message\": \"The report was uploaded to Google Drive, but logging it in Google Sheets failed or could not be confirmed.\",\n  \"retry_safe\": false,\n  \"requires_manual_review\": true\n}",
+        "options": {
+          "responseCode": 502
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1152,
+        208
+      ],
+      "id": "8336ed54-125b-4241-afdb-100903fc8a5e",
+      "name": "Respond - Sheets Logging Failed"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"success\": false,\n  \"error_code\": \"DUPLICATE_CHECK_FAILED\",\n  \"message\": \"Unable to verify whether this report already exists. Upload was stopped to prevent duplicates. Please try again later.\",\n  \"upload_performed\": false\n}",
+        "options": {
+          "responseCode": 503
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        160,
+        336
+      ],
+      "id": "29e43e16-f75e-4a0a-a536-403d8d9af1da",
+      "name": "Respond - Duplicate Check Failed"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Report Upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Report Upload": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload Sales Report to Drive": {
+      "main": [
+        [
+          {
+            "node": "Log Report in Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond - Drive Upload Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Report in Google Sheets": {
+      "main": [
+        [
+          {
+            "node": "Respond - Upload Success",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond - Sheets Logging Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Check Existing Reports",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond - Invalid Upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Existing Reports": {
+      "main": [
+        [
+          {
+            "node": "Evaluate Duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond - Duplicate Check Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evaluate Duplicate": {
+      "main": [
+        [
+          {
+            "node": "Is Duplicate Report?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Duplicate Report?": {
+      "main": [
+        [
+          {
+            "node": "Respond - Duplicate Report",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Upload Sales Report to Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "active": false,
+  "pinData": {},
+  "tags": []
+}
